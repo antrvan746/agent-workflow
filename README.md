@@ -14,12 +14,13 @@ Requires the mattpocock skills plugin (`mattpocock-skills:tdd`, `diagnosing-bugs
 ## What's inside
 | Path | Purpose |
 |---|---|
-| `WORKFLOW.md` | Core rules, always loaded: scope, transparency, type × level routing, flows, gates, reviewer, ship, external systems |
+| `WORKFLOW.md` | Core rules, always loaded: scope, transparency, profile and hooks, type × level routing, flows, gates, reviewer, ship, external systems |
 | `skills/wf-project-init` | Reads a project and proposes its `## Workflow` rules and workflow profile (no fixed presets) |
 | `skills/wf-plan` | Plan phase procedure + global plan hooks |
 | `skills/wf-execute` | Execute phase procedure + global execute hooks (type sequence, skills, parallel steps) |
 | `skills/wf-verify` | Verify phase procedure, testing standard, check packs (`packs/security`, `backend`, `frontend`) |
-| `skills/wf-lessons` | Turns late-found defects into proposed hooks (user approves) |
+| `skills/wf-lessons` | Turns late defects, user corrections and confirmed practices into proposed hooks (user approves) |
+| `skills/wf-retro` | Reads the hook log; proposes pruning, narrowing, upgrading or promoting hooks (user approves) |
 | `agents/wf-reviewer.md` | Independent read-only reviewer for Medium/Hard tasks |
 | `templates/` | Plan, report, decision log, ADR, workflow profile |
 
@@ -37,6 +38,12 @@ Requires the mattpocock skills plugin (`mattpocock-skills:tdd`, `diagnosing-bugs
 - **Execute**: required skills, tools and commands (e.g. run codegen after editing the schema).
 - **Verify**: which packs apply, how to run the app, domain edge cases, project checks.
 - Turn a global hook off with `off: <ID> — <reason>` or change its strength with `<ID>: must|should`.
+
+## Learning loop
+When the profile sets `log:` (e.g. `.scratch/workflow/hook-log.md`), each task appends its matched hooks to that log;
+every task ends with lesson proposals (`wf-lessons`). Every ~20 Medium/Hard tasks the report suggests `wf-retro`, which removes hooks that never catch
+anything, narrows ones that match wrongly, upgrades `should` hooks that keep catching defects, and promotes hooks
+shared by several projects to global.
 
 ## Keeping control without reading all the code
 - Read the ⚠️ lines in each report and answer them specifically (only then they become ✅).

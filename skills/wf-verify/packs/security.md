@@ -1,5 +1,6 @@
 # Pack: security
-Checks are `must` by default: a failure is a blocker unless the accepted risk is written down with a reason.
+Checks are `must` by default: a failure is a blocker unless the accepted risk is written down with a reason and the
+user's ✅ (wf-verify step 4).
 Stack-specific commands in `Verify` are examples; use the project's equivalent.
 
 ### SEC-INPUT [must]
@@ -35,8 +36,9 @@ Evidence: config `file:line`, test names
 
 ### SEC-SECRETS [must]
 When: config, logging, error handling or new credentials
-Claim: no secrets in the repo; no tokens, passwords or PII in logs, URLs or client-facing errors.
-Verify: grep the diff for keys/tokens; trigger an error → response has no stack trace or internals.
+Claim: no secrets in the repo (`.env` is git-ignored); no tokens, passwords or PII in logs, URLs, query strings or
+client-facing errors.
+Verify: grep the diff for keys/tokens; `git check-ignore .env`; trigger an error → response has no stack trace or internals.
 Evidence: grep result, response sample
 
 ### SEC-DEPS [must]

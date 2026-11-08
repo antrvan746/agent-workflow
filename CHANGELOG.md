@@ -1,5 +1,6 @@
 # Changelog
 
+- 2026-11-08: learning loop. Hook log (one row per matched hook, `caught`/`mismatch`/`missed`/`lesson`), new `wf-retro` (prune / narrow / upgrade / promote hooks from the log), `wf-lessons` also learns from user corrections and confirmed practices (`⚑ lesson candidate`).
 - 2026-11-08: phase skills. `wf-plan`, `wf-execute`, `wf-verify` hold each phase's procedure and global hooks with IDs; one hook format (`[must|should]` + When/Do/Output, checks: When/Claim/Verify/Evidence); per-project `.claude/workflow-profile.md` (risk map, plan/execute/verify hooks, off/strength overrides). `wf-review-*` became `wf-verify/packs/*` with IDs and verify recipes; `wf-testing-standard` merged into `wf-verify` with generic edge cases. Flow details moved out of WORKFLOW.md. install/uninstall remove dangling links to removed skills.
 - 2026-11-08: initial version (moved from kodwai/ process, English, type × level routing, wf-project-init, wf-lessons).
 - review fixes: precedence over third-party skills, ✅ only for explicitly asked lines, Easy-first levels, Easy without tdd/full UI checks, local-only external systems via `.scratch/`, decision log Off by default, CLAUDE.local.md option, install respects CLAUDE_CONFIG_DIR and never overwrites real dirs.

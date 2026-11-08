@@ -22,8 +22,9 @@ Evidence: screenshot or test name
 
 ### FE-STRUCTURE [should]
 When: new or substantially changed components
-Claim: one responsibility per component; state at the right level; derived state computed, not duplicated; no
-mutation of state or props; similar things share a reusable piece.
+Claim: one responsibility per component; state at the right level, no prop drilling beyond one layer; derived state
+computed, not duplicated; no mutation of state or props; similar things share a reusable piece, so adding a
+filter/field needs no rewrite.
 Verify: read the diff.
 Evidence: `file:line` of concerns, or "Pass"
 

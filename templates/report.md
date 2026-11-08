@@ -3,6 +3,7 @@
 ## Easy (1–3 sentences + declarations line)
 <What was done>. `<relevant gate>` → <result>.
 Declarations: <⚠️ … | None> · Hooks: <IDs done / skipped (why) | None> · Not verified: <… | None>
+Lessons: <L1 … | None> (hook log: only non-plain rows)
 Reviewer (if the project enables it): <VERDICT; fixed …>
 
 ## Medium / Hard
@@ -40,4 +41,18 @@ Reviewer (if the project enables it): <VERDICT; fixed …>
 **Least confident (worth a look):**
 1. <spot> — <why>
 
-**Lessons proposed:** <hook proposals (wf-lessons) | None>
+**Lessons proposed:** <L1 … from defects / corrections / confirmed practices (wf-lessons) | None>
+**Hook log:** <n rows appended to `<path>` | off (no `log:` in profile)> <· suggest wf-retro (≥20 Medium/Hard tasks since last retro)>
+
+## Hook log rows
+Only when the profile sets `log:`. Append before writing the report. Medium/Hard: one row per matched hook. Easy: only
+rows that are not plain `done`/`pass` (wf-retro ignores Easy rows for ratios and task counts).
+```
+| YYYY-MM-DD | <task, ≤8 words> | <level> | <ID> | <status> | <caught: yes/no> | <note> |
+| 2026-11-08 | add export endpoint | Medium | SEC-AUTHZ | fail | yes | IDOR on /export/:id, fixed |
+| 2026-11-08 | add export endpoint | Medium | -         | missed | -  | CSV injection found by user |
+| 2026-11-08 | add export endpoint | Medium | BE-CSV-ESCAPE | lesson | - | added via wf-lessons L1 |
+```
+status: `done`, `skipped`, `pass`, `fail`, `n-a`, `mismatch` (matched but did not apply), `missed` (ID `-`: a defect
+found late that no hook caught), `lesson` (hook added by wf-lessons). `caught: yes` = the hook found a real defect or
+changed the plan or code; `-` for missed/lesson rows.

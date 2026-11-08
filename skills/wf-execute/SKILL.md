@@ -1,6 +1,6 @@
 ---
 name: wf-execute
-description: Execute phase for project tasks - follow the task type's sequence, apply global and project execute hooks (required skills, tools, codegen, checkpoints), run independent steps in parallel safely, escalate when scope grows. Use when executing a Medium/Hard task, or an Easy task whose project profile has a matching execute hook.
+description: Execute phase for project tasks - follow the task type's sequence, apply global and project execute hooks (required skills, tools, codegen, checkpoints), run independent steps in parallel safely, escalate when scope grows. Use when executing a Medium/Hard task, or an Easy task of type Prototype or with a matching execute hook in the project profile.
 ---
 
 # Execute phase
@@ -9,7 +9,7 @@ Goal: build exactly what was agreed, with the project's own tools, keeping every
 
 ## Procedure
 1. **Select hooks**: the global hooks below + `## Execute` of the project profile. Apply overrides, match `When`,
-   list the selected IDs.
+   list the selected IDs. Easy (loaded only for Prototype or a matching profile hook): those hooks + `always` ones.
 2. **Follow the task type's sequence** (WORKFLOW.md "Task types"). What to test and at which layer: `wf-verify`
    → "Testing standard".
 3. **Per step** (plan steps, or the scope for Medium): change → run that step's "Verified by" → checkpoint. A
@@ -24,9 +24,8 @@ Goal: build exactly what was agreed, with the project's own tools, keeping every
 
 ## Global hooks
 ### EXEC-TYPE-SEQUENCE [must]
-When: always
-Do: follow the type's sequence; Medium/Hard Feature test-first with `mattpocock-skills:tdd`, Bug with
-`mattpocock-skills:diagnosing-bugs`, Refactor locks behavior with tests first.
+When: level ≥ Medium
+Do: follow the type's sequence in WORKFLOW.md "Task types" (skills named there included).
 Output: tests written before code, or the repro before the fix, visible in the transcript
 
 ### EXEC-CONVENTIONS [must]

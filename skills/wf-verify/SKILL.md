@@ -13,8 +13,10 @@ Goal: every "done" claim has evidence. Reading the code counts as evidence only 
      Pack files: `packs/<name>.md` next to this file (`security`, `backend`, `frontend`).
    - Checks: within each pack, those whose `When` matches the diff or the Risk map tags; plus the profile's own checks;
      plus the testing standard below. Apply `off` / strength overrides.
-   - Easy: gates + matching `must` checks only.
+   - Easy: gates + TEST-EASY + matching checks of the `security` pack, `FE-A11Y-NAMES`, `FE-A11Y-CONTRAST`, and
+     matching `must` checks of the profile. Other pack checks are for Medium/Hard.
 2. **Prove**: run each check's `Verify`; record Pass / Fail (`file:line`) / n/a (why) with its evidence.
+   Also check the diff against the profile's `## Invariants`.
 3. **Gates**: run them (WORKFLOW.md "Gates") and keep the real output.
 4. **Report**: one row per check: `ID | result | evidence`. A failed `must` is a blocker: fix it, or write down the
    accepted risk with a reason and get the user's ✅.
@@ -23,7 +25,7 @@ Goal: every "done" claim has evidence. Reading the code counts as evidence only 
 ## Check format
 ```
 ### <ID> [must|should]
-When: <selector: type, level, paths, tags, or free text>
+When: <selector: always, type, level, paths, tags, or free text>
 Claim: <what must be true>
 Verify: <command, test or action that proves it>
 Evidence: <what goes in the report>
@@ -40,7 +42,8 @@ wiring, modules together and DB queries; E2E for acceptance criteria and main us
 ### TEST-EASY [should]
 When: level Easy
 Claim: the change is proven by the relevant gates and, if cheap, one test.
-Verify: run gates of the touched area; add one test if it proves the task.
+Verify: run gates of the touched area; add one test if it proves the task; visual change: one screenshot or a
+contrast check.
 Evidence: gate output
 
 ### TEST-CRITERIA [must]

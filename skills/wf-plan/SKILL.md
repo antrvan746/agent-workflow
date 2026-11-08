@@ -16,8 +16,6 @@ Goal: agree on what "done" means, how it will be proven and which risks matter, 
 3. **Hard (plan)**: fill `$W/templates/plan.md`, run every selected hook, then **stop for approval**.
 4. Each selected hook's `Output` must appear in the scope or plan. A `should` hook may be skipped with a declared
    reason; a `must` hook may be skipped only if the user says so.
-5. Record the verify selection (packs and check IDs from `wf-verify`) in the scope/plan, so verification is agreed
-   before code.
 
 ## Global hooks
 ### PLAN-DONE-CRITERIA [must]
@@ -47,7 +45,7 @@ Do: list affected consumers and the compatibility strategy (version, migrate, or
 Output: "Risks" → contract impact
 
 ### PLAN-ROLLBACK [must]
-When: migration, data rewrite, or Risk map tag `data`
+When: migration, data rewrite, or tags `data`
 Do: rollback steps and data safety (backup, reversible migration, dry run).
 Output: "Risks" → rollback
 

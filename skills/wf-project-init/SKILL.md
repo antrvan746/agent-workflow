@@ -39,6 +39,8 @@ Present the choices that matter as numbered questions (Q1, Q2 …), each with a 
 - **Where to store the rules**: `CLAUDE.md` (shared with the team, committed) or `CLAUDE.local.md` (personal, not
   committed). Recommend `CLAUDE.local.md` for repos you do not own alone.
 - **Decision log**: path inside the repo, outside the repo (e.g. `~/notes/<project>-decisions.md`), or Off.
+- **Hook log** (`log:` in the profile, feeds `wf-retro`): default `.scratch/workflow/hook-log.md`; ask whether it is
+  committed or git-ignored, or Off.
 "ok" to that message answers exactly the questions it listed (✅). Rules that were not asked as questions are written
 with ⚠️ until the user confirms them individually.
 

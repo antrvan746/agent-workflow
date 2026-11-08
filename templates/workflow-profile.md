@@ -2,16 +2,18 @@
 <!-- Per-project extensions of the plan, execute and verify phases. Format: WORKFLOW.md "## Profile and hooks".
      Drafted by wf-project-init on YYYY-MM-DD. ⚠️ = not yet confirmed by the user.
      Hook: `### <ID> [must|should]` + When / Do / Output (verify checks: When / Claim / Verify / Evidence).
-     When selectors: type, level, paths, tags, or free text (free-text matches are declared with ⚑).
+     When selectors: always, type, level, paths, tags, or free text (free-text matches are declared with ⚑).
      Overrides of global hooks: `off: <ID> — <reason>` · `<ID>: must|should`. Delete sections you do not need. -->
 
+log: .scratch/workflow/hook-log.md   <!-- hook log for wf-retro; remove this line to disable logging -->
+
 ## Risk map
-<!-- path glob → tags, minimum level. Tags drive hook selection in every phase. -->
+<!-- path glob → tags, minimum level. Tags drive hook selection in every phase. Tags used by global hooks: `data`
+     (PLAN-ROLLBACK). Free-form otherwise. -->
 - `<glob>` → tags: <tag, tag> · level ≥ <Medium|Hard> — <why>
 
 ## Plan
 <!-- Global hooks: wf-plan. Add actions the plan must contain for this project. -->
-- defaults: on
 <!-- off: PLAN-EXT-SEARCH — <reason> -->
 
 <!--
@@ -23,7 +25,6 @@ Output: <where it appears in the scope/plan>
 
 ## Execute
 <!-- Global hooks: wf-execute. Required skills/tools, codegen, checkpoints, environment setup. -->
-- defaults: on
 
 <!--
 ### <PREFIX>-<NAME> [must]

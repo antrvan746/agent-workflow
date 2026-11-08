@@ -28,7 +28,8 @@ or a change: answer, then offer.
 - Additive by default: change only what is written. `Replace.` as the first line replaces that whole section.
   Empty or comment-only subsection = default. Rules still marked ⚠️ apply, and are listed in reports until confirmed.
 - Policy (levels, gates, ship, external systems) lives in `## Workflow`; phase extensions live in the profile.
-  A legacy `### Checklists` subsection is read as the profile's `## Verify`.
+  Legacy: `### Checklists` is read as the profile's `## Verify` (`wf-review-<x>` → pack `<x>`, `wf-testing-standard`
+  → wf-verify "Testing standard"); project `.claude/skills/review-*` still apply until moved into the profile.
 
 ## Profile and hooks
 Per-project extensions of the plan, execute and verify phases: `.claude/workflow-profile.md`
@@ -37,14 +38,17 @@ Per-project extensions of the plan, execute and verify phases: `.claude/workflow
 - **Risk map**: path globs → tags and a minimum level. Used for level choice and hook selection in every phase.
 - **Hook** (one format for all phases): `### <ID> [must|should]` + `When:` `Do:` `Output:` (verify checks use
   `When:` `Claim:` `Verify:` `Evidence:`).
-  - `When` selectors: `type`, `level`, `paths`, `tags`, or free text. A free-text match is declared
-    `⚑ hook matched: <ID> because …`.
+  - `When` selectors: `always`, `type`, `level`, `paths`, `tags`, or free text. A free-text match of a **profile**
+    hook is declared `⚑ hook matched: <ID> because …`; global hooks are only listed in the report.
   - `must`: required; skipping needs the user's OK; a failed verify `must` is a blocker. `should`: do it, or declare why not.
 - Global hooks ship with IDs inside `wf-plan`, `wf-execute`, `wf-verify` (and its packs). A profile turns one off with
   `off: <ID> — <reason>`, changes strength with `<ID>: must|should`, or adds its own with a prefix not used globally.
 - Hooks cannot weaken Transparency, Ship or External systems: a hook that pushes, opens a PR or calls an external
   service still needs that permission.
+- **Invariants** (profile `## Invariants`): domain rules every phase respects; `wf-verify` checks the diff against them.
 - Reports list the matched hooks per phase: done / skipped (why).
+- **Hook log** (feeds `wf-retro`): only when the profile sets `log: <path>`; no profile or no `log:` = no logging.
+  Append the rows (format in `$W/templates/report.md`) before writing the report.
 
 ## Transparency
 Goal: the user knows what the AI understood, knows, assumed and skipped, without reading all the code.
@@ -97,17 +101,18 @@ Check Easy first; escalate only when a higher criterion clearly applies.
 ## Flow
 Each phase skill holds the procedure and its global hooks; the profile extends them.
 
-**Easy**: execute (load `wf-execute` only when a profile hook matches) → `wf-verify` light: gates + matching `must`
-checks → diff scan → short report. No plan, no reviewer.
+**Easy**: execute per Task types, no unrequested changes (load `wf-execute` only for type Prototype or a matching
+profile Execute hook) → `wf-verify` light (its Easy rule) → diff scan → short report. No plan, no reviewer.
 
-**Medium**: (1) `wf-plan` scope (≤10 lines); (2) `wf-execute`; (3) `wf-verify` (all gates, selected packs and checks;
-UI changes: run the app, keyboard flows, screenshots); (4) reviewer; (5) report.
+**Medium**: (1) `wf-plan` scope; (2) `wf-execute`; (3) `wf-verify`; (4) reviewer; (5) report.
 
 **Hard**: (1) `wf-plan` full plan, **stop for approval**; (2) `wf-execute` per step, stop per step if the user wants;
 (3) `wf-verify` on the whole change; (4) reviewer; (5) ADR for architecture/codebase changes (`$W/templates/adr.md`,
 or the project's existing ADR location), README if usage changed; (6) report.
 
-After Medium/Hard: if a late-found defect was hook-preventable, propose a hook with `wf-lessons`.
+Learning loop: note `⚑ lesson candidate` when a defect is found late, the user corrects the approach, or the user
+confirms a non-obvious practice; at the report, propose hooks with `wf-lessons`. `wf-retro` prunes, sharpens and
+promotes hooks from the hook log.
 
 ## Gates
 - From the project's `### Gates`; otherwise detect (package.json, Makefile, pyproject…), declare ⚠️, suggest init.
@@ -138,7 +143,8 @@ using `$W/templates/decision-log.md`. Declarations always appear in reports eith
 
 ## Report
 `$W/templates/report.md`. Medium/Hard: result, understanding, declarations (⚠️/✅), criteria ↔ evidence, hooks per
-phase, verify checks, gates, reviewer, not done / not verified, 1–3 least confident spots. Easy: the short template.
+phase, verify checks, gates, reviewer, not done / not verified, 1–3 least confident spots, lessons proposed. Easy:
+the short template.
 
 ## Handoff
 No session state files. Handoff only when the user asks (they run `/handoff`).
