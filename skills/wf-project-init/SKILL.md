@@ -1,6 +1,6 @@
 ---
 name: wf-project-init
-description: Read a project and propose its workflow rules (the `## Workflow` section of its CLAUDE.md) instead of a fixed profile. Use when a project has no `## Workflow` section, when the user asks to set up or re-check project rules, or when the project's nature changed.
+description: Read a project and propose its workflow rules (the `## Workflow` section of its CLAUDE.md) and its workflow profile (risk map, plan/execute/verify hooks) instead of a fixed preset. Use when a project has no `## Workflow` section, when the user asks to set up or re-check project rules, or when the project's nature changed.
 ---
 
 # Project init
@@ -22,14 +22,19 @@ required checks." Typical signal → rule mappings to consider (adapt, do not co
 
 | Signal | Rules to consider |
 |---|---|
-| Organization remote, CODEOWNERS, protected-branch CI, CONTRIBUTING | Follow existing conventions; branch + PR, never push to default; no CI/dependency/schema change without asking; security checklist always; no external services; rules in `CLAUDE.local.md`; decision log Off or outside the repo; use the repo's existing ADR location if any |
+| Organization remote, CODEOWNERS, protected-branch CI, CONTRIBUTING | Follow existing conventions; branch + PR, never push to default; no CI/dependency/schema change without asking; verify pack `security` always; no external services; rules in `CLAUDE.local.md`; decision log Off or outside the repo; use the repo's existing ADR location if any |
 | Personal remote, no CI, small codebase | Wider Easy band; reviewer optional for Medium; decision log optional |
-| `PROBLEM.md`, time limit, interview/challenge wording, `.kodwai/` | Rubric/problem as done criteria; commit per step to show decomposition; README records decisions; visible verification |
-| Payment, auth, PII, migrations directories | Changes there are at least Hard |
+| `PROBLEM.md`, time limit, interview/challenge wording, `.kodwai/` | Rubric/problem as done criteria (plan hook mapping rubric → steps); commit per step to show decomposition; README records decisions; visible verification; maybe `off: PLAN-EXT-SEARCH` if time is tight |
+| Payment, auth, PII, migrations directories | Risk map entries: tags + level ≥ Hard; verify pack `security`; project checks for the domain |
+| Codegen, schema, i18n, design-system tooling | Execute hooks: the command to run after editing those paths |
+| UI framework / API framework / both | Verify packs `frontend` / `backend`; how to run the app goes in `environments` |
 | No tests or gates | Propose gate commands to add first |
 
-## 3. Propose the section
-Fill `templates/workflow-section.md` (next to this file). Every rule gets a short reason with its evidence label.
+## 3. Propose the section and the profile
+Fill `templates/workflow-section.md` (next to this file) for policy, and `$W/templates/workflow-profile.md` for the
+risk map and phase hooks (keep only sections with content). Every rule and hook gets a short reason with its
+evidence label. A legacy `### Checklists` subsection or `.claude/skills/review-*` skills: propose moving them into the
+profile's `## Verify`.
 Present the choices that matter as numbered questions (Q1, Q2 …), each with a recommended answer. Always include:
 - **Where to store the rules**: `CLAUDE.md` (shared with the team, committed) or `CLAUDE.local.md` (personal, not
   committed). Recommend `CLAUDE.local.md` for repos you do not own alone.
@@ -38,6 +43,7 @@ Present the choices that matter as numbered questions (Q1, Q2 …), each with a 
 with ⚠️ until the user confirms them individually.
 
 ## 4. Write
-After the user answers: append (or update) the `## Workflow` section in the chosen file. Never delete other content.
-If `CLAUDE.local.md` is chosen, check it is git-ignored (Claude Code ignores it by convention; add it to `.gitignore`
+After the user answers: append (or update) the `## Workflow` section in the chosen file, and write the profile
+(`.claude/workflow-profile.md`, or `.claude/workflow-profile.local.md` with `CLAUDE.local.md`). Never delete other
+content. If the local variants are chosen, check they are git-ignored (Claude Code ignores it by convention; add it to `.gitignore`
 only with the user's consent). Show the final section in the reply.

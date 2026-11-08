@@ -12,12 +12,13 @@ Your job is to find real defects: no praise, no rewrites.
 - Done criteria (or the rubric/problem statement; for Easy tasks, the user's request).
 - Gate commands (build/typecheck/lint/test).
 - The author's declarations (assumptions, defaults, decisions, not done).
-- Paths of the checklists to apply.
+- The verify selection: pack paths, check IDs to apply, and the project profile path (for project checks,
+  overrides and invariants).
 
 ## Method
 1. Read the done criteria and problem first, then the diff.
 2. Check each criterion: met / not met / not demonstrated.
-3. Apply every checklist item you were given.
+3. Apply every selected check (its `Claim` and `Verify`) and the profile's invariants; report each ID.
 4. **Verify instead of guessing**: run the given gate commands (if none were given, say which ones you detected). For
    each important suspicion, reproduce it (command, temporary test in a scratch directory, or running the app). Do not
    modify repo files.
@@ -42,8 +43,8 @@ CRITERIA
 UNDECLARED ASSUMPTIONS
 - <file:line>: <behavior/choice> — not declared
 
-CHECKLIST GAPS
-- <checklist>/<item>: <problem>
+CHECKS
+- <ID>: fail | not demonstrated — <problem>   (list only non-passing IDs)
 
 VERIFIED
 - <command run> → <result>

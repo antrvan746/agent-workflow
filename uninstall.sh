@@ -10,6 +10,5 @@ if [ -f "$C/CLAUDE.md" ] && grep -qxF "$MARK" "$C/CLAUDE.md"; then
   cat "$tmp" > "$C/CLAUDE.md"; rm -f "$tmp"; echo "removed import from $C/CLAUDE.md"
 fi
 unlink_ours() { [ -L "$1" ] && [[ "$(readlink "$1")" == "$W"/* ]] && rm "$1" && echo "unlinked $1" || true; }
-for d in "$W"/skills/wf-*; do unlink_ours "$C/skills/$(basename "$d")"; done
-for f in "$W"/agents/*.md; do unlink_ours "$C/agents/$(basename "$f")"; done
+for l in "$C"/skills/wf-* "$C"/agents/wf-*; do unlink_ours "$l"; done   # also catches links to removed skills
 echo "done ($C)."

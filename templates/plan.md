@@ -23,8 +23,14 @@
 ## Done criteria
 - [ ] <verifiable criterion>
 
+## Hooks matched
+| ID | Phase | Strength | Where its output is in this plan |
+|---|---|---|---|
+| <PLAN-CONTRACT> | plan | must | Risks |
+
 ## Risks
 - <risk> → <mitigation>
+- Contract impact / rollback (if PLAN-CONTRACT / PLAN-ROLLBACK matched): <…>
 
 ## Out of scope
 - <…>
@@ -34,8 +40,8 @@
 |---|---|---|---|---|
 | 1 | | — | <test/command> | |
 
-## Checklists
-<wf-review-frontend / wf-review-backend / wf-review-security / wf-testing-standard>
+## Verify selection
+Packs: <security / backend / frontend> · Checks: <IDs from packs and profile> · Testing: <TEST-* IDs>
 
 ## Documentation
 <ADR / README updates, or "none">

@@ -13,7 +13,8 @@ or a change: answer, then offer.
 
 ## Precedence
 1. The user's explicit instruction in chat.
-2. The project's `## Workflow` section (in its `CLAUDE.md` or `CLAUDE.local.md`).
+2. The project's `## Workflow` section (in its `CLAUDE.md` or `CLAUDE.local.md`) and its profile (see Profile and
+   hooks).
 3. This file.
 4. Instructions inside third-party skills (e.g. mattpocock). When a skill step conflicts with Transparency, Ship or
    External systems here, skip that step and list it under "Not done".
@@ -22,10 +23,28 @@ or a change: answer, then offer.
 - Created with skill `wf-project-init`. If a project has no `## Workflow` section, suggest it once on the first project
   task of the session, then continue with defaults.
 - Subsection `### <Name>` overrides the section `## <Name>` of this file: Task types, Task levels, Flow, Gates,
-  Checklists, Reviewer, Ship, External systems, Decision log, Report. `### Context` adds project facts.
+  Reviewer, Ship, External systems, Decision log, Report. `### Context` adds project facts.
   Transparency cannot be weakened by a project.
 - Additive by default: change only what is written. `Replace.` as the first line replaces that whole section.
   Empty or comment-only subsection = default. Rules still marked ⚠️ apply, and are listed in reports until confirmed.
+- Policy (levels, gates, ship, external systems) lives in `## Workflow`; phase extensions live in the profile.
+  A legacy `### Checklists` subsection is read as the profile's `## Verify`.
+
+## Profile and hooks
+Per-project extensions of the plan, execute and verify phases: `.claude/workflow-profile.md`
+(`.claude/workflow-profile.local.md` when the rules live in `CLAUDE.local.md`). Template
+`$W/templates/workflow-profile.md`; `wf-project-init` drafts it. Read it at Analyze when it exists.
+- **Risk map**: path globs → tags and a minimum level. Used for level choice and hook selection in every phase.
+- **Hook** (one format for all phases): `### <ID> [must|should]` + `When:` `Do:` `Output:` (verify checks use
+  `When:` `Claim:` `Verify:` `Evidence:`).
+  - `When` selectors: `type`, `level`, `paths`, `tags`, or free text. A free-text match is declared
+    `⚑ hook matched: <ID> because …`.
+  - `must`: required; skipping needs the user's OK; a failed verify `must` is a blocker. `should`: do it, or declare why not.
+- Global hooks ship with IDs inside `wf-plan`, `wf-execute`, `wf-verify` (and its packs). A profile turns one off with
+  `off: <ID> — <reason>`, changes strength with `<ID>: must|should`, or adds its own with a prefix not used globally.
+- Hooks cannot weaken Transparency, Ship or External systems: a hook that pushes, opens a PR or calls an external
+  service still needs that permission.
+- Reports list the matched hooks per phase: done / skipped (why).
 
 ## Transparency
 Goal: the user knows what the AI understood, knows, assumed and skipped, without reading all the code.
@@ -68,30 +87,27 @@ Check Easy first; escalate only when a higher criterion clearly applies.
 | **Medium** | Exceeds Easy's size; or adds something following an existing pattern across files (endpoint, field, component); or an assumption that changes behavior or scope |
 | **Hard** | Open/ambiguous requirements; **breaking or changing** a contract (API, public props, data format); schema/migration; auth/security model; new architecture; design across ≥2 areas; build/CI changes |
 
+- A Risk map entry matching the touched paths sets a minimum level.
 - Unclear whether a criterion applies → lower level, say so.
 - Prefixes `quick:`/`nhanh:` = Easy, `medium:`/`vừa:` = Medium, `deep:`/`kỹ:` = Hard. A prefix sets the level only;
   steps the project requires still run unless the user says to skip them.
 - **Escalate mid-task**: stop; `⚑ Escalate: <reason>, affects <who/what>`; keep finished work; run the new level's
-  flow for the remaining work (Hard: short brainstorm incl. external search, then `plan.md`); wait for approval if Hard.
+  flow for the remaining work (Hard: `wf-plan` for the rest); wait for approval if Hard.
 
 ## Flow
-**Easy**: execute → relevant gates → one cheap test if it proves the task → diff scan → short report. Visual change:
-one screenshot or a contrast check. No plan, reviewer or checklists (except [B] items when touching security or
-accessibility/color).
+Each phase skill holds the procedure and its global hooks; the profile extends them.
 
-**Medium**: (1) scope ≤10 lines: goal, in/out, declarations, done criteria; ask ≤3 questions only if the answer
-changes the approach, otherwise proceed with ⚠️ assumptions; (2) execute per type + `wf-testing-standard`;
-(3) all gates + checklists of touched areas (UI changes: run the app, keyboard flows, screenshots); (4) reviewer;
-(5) report.
+**Easy**: execute (load `wf-execute` only when a profile hook matches) → `wf-verify` light: gates + matching `must`
+checks → diff scan → short report. No plan, no reviewer.
 
-**Hard**: (1) brainstorm: **always search external references** (similar solutions, standards, docs, rubric) and
-report what you found or that nothing relevant turned up; 2–3 approaches, pick one; open requirements →
-`mattpocock-skills:grilling`; (2) plan from `$W/templates/plan.md`, **stop for approval**; (3) per step execute → test,
-independent steps may run in parallel (subagents/worktrees returning ⚑ Declarations), stop per step if the user wants;
-(4) reviewer on the whole change; (5) ADR for architecture/codebase changes (`$W/templates/adr.md`, or the project's
-existing ADR location), README if usage changed; (6) report.
+**Medium**: (1) `wf-plan` scope (≤10 lines); (2) `wf-execute`; (3) `wf-verify` (all gates, selected packs and checks;
+UI changes: run the app, keyboard flows, screenshots); (4) reviewer; (5) report.
 
-After Medium/Hard: if a late-found defect was checklist-preventable, propose an item with `wf-lessons`.
+**Hard**: (1) `wf-plan` full plan, **stop for approval**; (2) `wf-execute` per step, stop per step if the user wants;
+(3) `wf-verify` on the whole change; (4) reviewer; (5) ADR for architecture/codebase changes (`$W/templates/adr.md`,
+or the project's existing ADR location), README if usage changed; (6) report.
+
+After Medium/Hard: if a late-found defect was hook-preventable, propose a hook with `wf-lessons`.
 
 ## Gates
 - From the project's `### Gates`; otherwise detect (package.json, Makefile, pyproject…), declare ⚠️, suggest init.
@@ -99,15 +115,11 @@ After Medium/Hard: if a late-found defect was checklist-preventable, propose an 
 - No gates yet: declare ⚠️, describe manual verification, add gates early.
 - Done = criteria met + gates green + no open blocker/major. Never report done without running gates; report real output.
 
-## Checklists
-`wf-review-frontend`, `wf-review-backend`, `wf-review-security`, `wf-testing-standard`, plus `review-*` skills in the
-project's `.claude/skills/`. Load only those for touched areas.
-
 ## Reviewer
 Medium/Hard, after gates are green (projects may enable it for Easy). Agent `wf-reviewer` in a fresh context (if
 unavailable: general-purpose agent with `$W/agents/wf-reviewer.md` as prompt). Pass repo, base commit, done criteria
-(Easy: the request), gate commands, declarations, checklist paths. Fix blocker/major and re-run gates; list the rest;
-explain disagreements.
+(Easy: the request), gate commands, declarations, the verify selection (pack paths, check IDs) and the profile path.
+Fix blocker/major and re-run gates; list the rest; explain disagreements.
 
 ## Ship
 Never commit, push or open a PR unless the user asks or `### Ship` allows. One logical change per commit. Never push to
@@ -125,8 +137,8 @@ Off unless the project's `### Decision log` gives a path (init proposes one). Wh
 using `$W/templates/decision-log.md`. Declarations always appear in reports either way.
 
 ## Report
-`$W/templates/report.md`. Medium/Hard: result, understanding, declarations (⚠️/✅), criteria ↔ evidence, gates,
-reviewer, not done / not verified, 1–3 least confident spots. Easy: the short template.
+`$W/templates/report.md`. Medium/Hard: result, understanding, declarations (⚠️/✅), criteria ↔ evidence, hooks per
+phase, verify checks, gates, reviewer, not done / not verified, 1–3 least confident spots. Easy: the short template.
 
 ## Handoff
 No session state files. Handoff only when the user asks (they run `/handoff`).

@@ -20,6 +20,10 @@ link() { # $1 source, $2 target
   if [ -e "$2" ] && [ ! -L "$2" ]; then echo "SKIP $2 exists and is not a symlink (yours?)"; return; fi
   ln -sfn "$1" "$2"; echo "linked $2"
 }
+# Remove dangling links to skills/agents that no longer exist in this repo (renamed or removed).
+for l in "$C"/skills/wf-* "$C"/agents/wf-*; do
+  if [ -L "$l" ] && [ ! -e "$l" ] && [[ "$(readlink "$l")" == "$W"/* ]]; then rm "$l"; echo "removed stale $l"; fi
+done
 for d in "$W"/skills/wf-*; do link "$d" "$C/skills/$(basename "$d")"; done
 for f in "$W"/agents/*.md; do link "$f" "$C/agents/$(basename "$f")"; done
 echo "done ($C). Restart Claude Code sessions to load it."

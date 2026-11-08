@@ -3,6 +3,7 @@
      `Replace.` as the first line replaces that section. Empty subsection = default. ⚠️ = not yet confirmed. -->
 
 ### Context
+- Profile: `.claude/workflow-profile.md` (risk map, plan/execute/verify hooks)
 - Nature: <e.g. company service / personal project / interview task> — <evidence>
 - Users, constraints, source of done criteria: <…>
 
@@ -22,9 +23,6 @@
 
 ### Reviewer
 <!-- e.g. Also for Easy tasks -->
-
-### Checklists
-<!-- e.g. Always apply wf-review-security -->
 
 ### Ship
 <!-- e.g. Branch per task, PR to `main`, never push to `main`; or: commit after each step (interview) -->

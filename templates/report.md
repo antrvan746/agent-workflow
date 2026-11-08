@@ -2,7 +2,7 @@
 
 ## Easy (1–3 sentences + declarations line)
 <What was done>. `<relevant gate>` → <result>.
-Declarations: <⚠️ … | None> · Not verified: <… | None>
+Declarations: <⚠️ … | None> · Hooks: <IDs done / skipped (why) | None> · Not verified: <… | None>
 Reviewer (if the project enables it): <VERDICT; fixed …>
 
 ## Medium / Hard
@@ -22,6 +22,15 @@ Reviewer (if the project enables it): <VERDICT; fixed …>
 |---|---|---|
 | | ✅/❌ | <test name, command, screenshot> [verified] |
 
+**Hooks matched**
+- Plan: <ID done | ID skipped — why | None>
+- Execute: <…>
+
+**Verify checks**
+| ID | Result | Evidence |
+|---|---|---|
+| <SEC-AUTHZ> | Pass / Fail `file:line` / n/a (why) | <test, command, screenshot> |
+
 **Gates:** `<command>` → <x passed / y failed>
 
 **Reviewer:** <VERDICT>. Fixed: <…>. Not fixed (why): <…>. (UNDECLARED findings were added to the table above.)
@@ -31,4 +40,4 @@ Reviewer (if the project enables it): <VERDICT; fixed …>
 **Least confident (worth a look):**
 1. <spot> — <why>
 
-**Lessons proposed:** <checklist item proposals | None>
+**Lessons proposed:** <hook proposals (wf-lessons) | None>
