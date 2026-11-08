@@ -47,5 +47,7 @@ with ⚠️ until the user confirms them individually.
 ## 4. Write
 After the user answers: append (or update) the `## Workflow` section in the chosen file, and write the profile
 (`.claude/workflow-profile.md`, or `.claude/workflow-profile.local.md` with `CLAUDE.local.md`). Never delete other
-content. If the local variants are chosen, check they are git-ignored (Claude Code ignores it by convention; add it to `.gitignore`
+content. Set the profile's `reviewed:` line to today and `git rev-parse --short HEAD`, then run
+`$W/bin/wf-lint <project>`; show what it reports and propose fixes as new questions (never change approved rules
+silently). If the local variants are chosen, check they are git-ignored (Claude Code ignores it by convention; add it to `.gitignore`
 only with the user's consent). Show the final section in the reply.

@@ -49,6 +49,11 @@ Per-project extensions of the plan, execute and verify phases: `.claude/workflow
 - Reports list the matched hooks per phase: done / skipped (why).
 - **Hook log** (feeds `wf-retro`): only when the profile sets `log: <path>`; no profile or no `log:` = no logging.
   Append the rows (format in `$W/templates/report.md`) before writing the report.
+- **Staleness**: the profile records `reviewed: <date> @ <commit>`. `$W/bin/wf-lint` (SessionStart hook) reports drift
+  (dead paths, missing commands or skills) or staleness (default >30 days or ≥20 commits touching manifests/CI/docs;
+  profile `audit: <n>d, <m> commits` overrides; `lint-ignore: <text>` silences a finding kept on purpose). When it
+  reports, suggest `wf-audit` once. Rules change only with approval; updating `reviewed:` after a completed audit is
+  bookkeeping and needs none.
 
 ## Transparency
 Goal: the user knows what the AI understood, knows, assumed and skipped, without reading all the code.

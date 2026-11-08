@@ -1,0 +1,502 @@
+#!/usr/bin/env python3
+"""wf-lint: deterministic drift and staleness checks for agent-workflow.
+
+Usage:
+  wf-lint [project_dir]          check a project's workflow profile(s) and rules (default: cwd)
+  wf-lint --global               check the workflow repo itself ($W)
+  wf-lint --hook                 SessionStart mode: project from stdin JSON "cwd"; silent unless there is something
+                                 to report; always exits 0
+  wf-lint --install-hook <dir>   add the SessionStart hook to <dir>/settings.json (used by install.sh)
+  wf-lint --remove-hook <dir>    remove it (used by uninstall.sh)
+
+Principle: report only what is certainly wrong; skip what cannot be verified. Silence a finding on purpose with a
+profile line `lint-ignore: <text>` (any issue containing <text> is hidden; `;` separates several; repeatable).
+Exit code (check modes): 0 = clean, 1 = issues. Stdlib only, Python >= 3.8.
+"""
+import glob, json, os, re, shutil, stat, subprocess, sys, tempfile, time
+from datetime import date, datetime
+
+W = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+HOOK_RE = re.compile(r"^### ([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+) \[(must|should)\]\s*$", re.M)
+ID = r"[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+"
+MANIFESTS = [  # root-level files whose changes suggest the rules may be outdated (lockfiles excluded)
+    "package.json", "pyproject.toml", "requirements*.txt", "setup.py", "setup.cfg", "go.mod", "Cargo.toml",
+    "Gemfile", "composer.json", "pom.xml", "build.gradle*", "Makefile", "justfile", "Dockerfile*",
+    "docker-compose*", "tsconfig*.json", ".github/workflows/*", ".gitlab-ci.yml", "CLAUDE.md", "CONTRIBUTING*",
+]
+DEFAULT_DAYS, DEFAULT_COMMITS = 30, 20
+DEADLINE = time.monotonic() + 8  # shared budget for all subprocesses (the hook timeout is 15s)
+PROFILE_NAMES = ("workflow-profile.md", "workflow-profile.local.md")
+
+
+# ---------- helpers ----------
+def sh(args, cwd):
+    left = DEADLINE - time.monotonic()
+    if left <= 0.2:
+        return None
+    try:
+        r = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=left)
+        return r.stdout if r.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def read(path):
+    return open(path, encoding="utf-8", errors="replace").read()
+
+
+def load_json(path):
+    try:
+        return json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def strip_comments(text):
+    return re.sub(r"<!--.*?-->", "", text, flags=re.S)
+
+
+def hook_blocks(text):
+    text = strip_comments(text)
+    ms = list(HOOK_RE.finditer(text))
+    for i, m in enumerate(ms):
+        end = ms[i + 1].start() if i + 1 < len(ms) else len(text)
+        body = re.split(r"^#{1,3} ", text[m.end():end], maxsplit=1, flags=re.M)[0]
+        yield m.group(1), m.group(2), body
+
+
+def lint_hooks(text, where):
+    issues, seen = [], set()
+    for hid, _, body in hook_blocks(text):
+        if hid in seen:
+            issues.append(f"[format] {where}: duplicate hook ID {hid}")
+        seen.add(hid)
+        need = ["When:", "Claim:", "Verify:", "Evidence:"] if "Claim:" in body else ["When:", "Do:", "Output:"]
+        miss = [k for k in need if k not in body]
+        if miss:
+            issues.append(f"[format] {where}: {hid} missing {', '.join(miss)}")
+    return issues, seen
+
+
+def global_ids():
+    ids = set()
+    for f in glob.glob(os.path.join(W, "skills", "**", "*.md"), recursive=True):
+        ids |= {h for h, _, _ in hook_blocks(read(f))}
+    return ids
+
+
+def expand_braces(g):
+    m = re.search(r"\{([^{}]*)\}", g)
+    if not m:
+        return [g]
+    return [x for alt in m.group(1).split(",") for x in expand_braces(g[:m.start()] + alt + g[m.end():])]
+
+
+def glob_to_re(g):
+    out, i = "", 0
+    while i < len(g):
+        if g.startswith("**/", i):
+            out += "(?:.*/)?"; i += 3
+        elif g.startswith("**", i):
+            out += ".*"; i += 2
+        elif g[i] == "*":
+            out += "[^/]*"; i += 1
+        elif g[i] == "?":
+            out += "[^/]"; i += 1
+        else:
+            out += re.escape(g[i]); i += 1
+    return re.compile(out + "(?:/.*)?$")
+
+
+def project_files(project):
+    out = sh(["git", "ls-files", "-co", "--exclude-standard"], project)
+    if out is not None:
+        return out.splitlines()
+    files = []  # not a git repo: walk, skipping heavy dirs
+    for dp, dns, fns in os.walk(project):
+        dns[:] = [d for d in dns if d not in ("node_modules", ".git", ".venv", "venv", "dist", "build")]
+        files += [os.path.relpath(os.path.join(dp, f), project) for f in fns]
+        if len(files) > 50000:
+            break
+    return files
+
+
+def section(text, name, level="###"):
+    m = re.search(rf"^{level} {re.escape(name)}\s*$(.*?)(?=^#{{1,{len(level)}}} |\Z)", text, re.M | re.S)
+    return strip_comments(m.group(1)) if m else ""
+
+
+# ---------- skills ----------
+def config_dirs():
+    """The active Claude config dir only: $CLAUDE_CONFIG_DIR, else ~/.claude."""
+    env = os.environ.get("CLAUDE_CONFIG_DIR")
+    d = os.path.expanduser(env) if env else os.path.expanduser("~/.claude")
+    return [d] if os.path.isdir(d) else []
+
+
+def skill_files(root):
+    for dp, dns, fns in os.walk(root):
+        dns[:] = [d for d in dns if d not in ("node_modules", ".git")]
+        if "SKILL.md" in fns:
+            yield os.path.join(dp, "SKILL.md")
+
+
+def installed_skills(project):
+    """Return (skill names incl. 'plugin:skill', installed plugin names)."""
+    names, plugin_names = set(), set()
+    roots = [os.path.join(project, ".claude", "skills")] if project else []
+    for c in config_dirs():
+        roots.append(os.path.join(c, "skills"))
+        plugins = (load_json(os.path.join(c, "plugins", "installed_plugins.json")) or {}).get("plugins", {})
+        for key, entries in (plugins.items() if isinstance(plugins, dict) else []):
+            pname = key.split("@")[0]
+            plugin_names.add(pname)
+            for e in entries if isinstance(entries, list) else [entries]:
+                ip = e.get("installPath") if isinstance(e, dict) else None
+                for s in skill_files(os.path.join(ip or "/nonexistent", "skills")):
+                    names.add(f"{pname}:{os.path.basename(os.path.dirname(s))}")
+    for r in roots:
+        for s in glob.glob(os.path.join(r, "*", "SKILL.md")):
+            names.add(os.path.basename(os.path.dirname(s)))
+    return names, plugin_names
+
+
+def workflow_plugins():
+    """Plugin prefixes the workflow itself depends on (`plugin:skill` spans in WORKFLOW.md and skills/)."""
+    out = set()
+    for f in [os.path.join(W, "WORKFLOW.md")] + glob.glob(os.path.join(W, "skills", "**", "*.md"), recursive=True):
+        out |= {r.split(":")[0] for r in re.findall(r"`([a-z0-9]+(?:-[a-z0-9]+)+:[a-z0-9-]+)`", read(f))}
+    return out
+
+
+def referenced_skills(text, plugin_names):
+    """Only certain references: `plugin:skill` of an installed or workflow-known plugin, `wf-*`, 'skill `x`'."""
+    text = "\n".join(l for l in strip_comments(text).splitlines() if "legacy" not in l.lower())
+    known = plugin_names | workflow_plugins()
+    refs = {r for r in re.findall(r"`([a-z0-9-]+:[a-z0-9-]+)`", text) if r.split(":")[0] in known}
+    refs |= set(re.findall(r"`(wf-[a-z-]+)`", text))
+    refs |= set(re.findall(r"\bskill\s+`([a-z0-9][a-z0-9-]*(?::[a-z0-9-]+)?)`", text, flags=re.I))
+    return refs
+
+
+# ---------- commands ----------
+def check_command(cmd, project):
+    """Return an issue only when the command certainly refers to something missing; otherwise None."""
+    c = cmd.strip()
+    if not c or "<" in c or "..." in c or "://" in c or (" " not in c and not c.startswith("./")):
+        return None  # placeholders, URLs, labels and single words are not checked
+    seg = re.split(r"\s*(?:\|\||;|\|)\s*", c)[0]
+    steps = [p for p in re.split(r"\s*&&\s*", seg) if p]
+    cwd = project
+    while steps and re.match(r"^cd\s+\S+$", steps[0]):
+        d = steps.pop(0).split(None, 1)[1]
+        if d.startswith(("/", "~", "$")):
+            return None
+        cwd = os.path.join(cwd, d)
+        if not os.path.isdir(cwd):
+            return f"`{cmd}`: directory `{d}` not found"
+    if not steps:
+        return None
+    parts = steps[0].split()
+    while parts and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", parts[0]):
+        parts.pop(0)  # leading VAR=value
+    if not parts:
+        return None
+    tool, rest = parts[0], parts[1:]
+    in_subdir = lambda rel: any(glob.glob(os.path.join(cwd, *(["*"] * n), rel)) for n in (1, 2))  # sub-repos
+
+    if tool in ("npm", "pnpm", "yarn", "bun") and rest:
+        if rest[0].startswith("-") or rest[0] in ("workspace", "workspaces"):
+            return None  # --prefix / -C / --filter / workspaces: not resolvable reliably
+        builtin = {"install", "i", "ci", "exec", "dlx", "x", "add", "remove", "audit", "create", "init", "publish",
+                   "link", "outdated", "update", "up", "why", "list", "ls", "pack", "version", "info", "config"}
+        if rest[0] == "run":
+            if len(rest) < 2 or rest[1].startswith("-"):
+                return None
+            script = rest[1]
+        elif rest[0] in builtin:
+            return None
+        else:
+            script = rest[0]
+        pkg = load_json(os.path.join(cwd, "package.json"))
+        if not isinstance(pkg, dict):
+            return None  # no package.json here (workspace of sub-repos, etc.): unverifiable
+        if script in (pkg.get("scripts") or {}):
+            return None
+        if tool != "npm" and rest[0] != "run" and os.path.exists(os.path.join(cwd, "node_modules", ".bin", script)):
+            return None  # `pnpm vitest` runs a binary
+        for p in glob.glob(os.path.join(cwd, "*", "package.json")) + glob.glob(os.path.join(cwd, "*", "*", "package.json")):
+            sub = load_json(p)
+            if isinstance(sub, dict) and script in (sub.get("scripts") or {}):
+                return None  # defined in a sub-package: cannot tell which one is meant
+        return f"`{cmd}`: script `{script}` not in {os.path.relpath(os.path.join(cwd, 'package.json'), project)}"
+
+    if tool == "make" and rest:
+        if rest[0].startswith("-"):
+            return None
+        names = set(os.listdir(cwd)) if os.path.isdir(cwd) else set()
+        mk = next((n for n in ("GNUmakefile", "makefile", "Makefile") if n in names), None)
+        if not mk:
+            return None if in_subdir("Makefile") else f"`{cmd}`: no Makefile"
+        text = read(os.path.join(cwd, mk))
+        if re.search(r"^-?include\b", text, re.M):
+            return None
+        lhs = re.findall(r"^([^\s#:=][^:=#]*?)\s*::?(?!=)", text, re.M)
+        if any("%" in l or "$(" in l or "${" in l for l in lhs):
+            return None  # pattern or variable targets: cannot decide
+        if any(rest[0] in l.split() for l in lhs):
+            return None
+        return f"`{cmd}`: target `{rest[0]}` not in {mk}"
+
+    if "/" in tool and not tool.startswith(("/", "~", "$")):
+        if os.path.exists(os.path.join(cwd, tool)) or in_subdir(tool):
+            return None
+        return f"`{cmd}`: `{tool}` not found"
+    return None  # other tools: whether they are installed on this machine is not a rules problem
+
+
+# ---------- project ----------
+def find_project_root(start):
+    """First ancestor of start (up to the git toplevel, or /) that has a profile."""
+    top = (sh(["git", "rev-parse", "--show-toplevel"], start) or "").strip() or None
+    d = os.path.abspath(start)
+    while True:
+        if any(os.path.exists(os.path.join(d, ".claude", n)) for n in PROFILE_NAMES):
+            return d
+        if d == top or d == os.path.expanduser("~") or os.path.dirname(d) == d:
+            return None
+        d = os.path.dirname(d)
+
+
+def staleness(project, text, rel):
+    m = re.search(r"^reviewed:\s*(\S+)(?:\s*@\s*([0-9a-f]{7,40}))?", text, re.M)
+    if not m or "YYYY" in m.group(1):
+        return [f"[stale] {rel}: no `reviewed: YYYY-MM-DD @ <commit>` line"]
+    try:
+        reviewed = datetime.strptime(m.group(1), "%Y-%m-%d").date()
+    except ValueError:
+        return [f"[format] {rel}: invalid reviewed date `{m.group(1)}`"]
+    days_lim, commits_lim = DEFAULT_DAYS, DEFAULT_COMMITS
+    a = re.search(r"^audit:\s*(?:(\d+)\s*d(?:ays)?)?\s*,?\s*(?:(\d+)\s*commits?)?", text, re.M)
+    if a:
+        days_lim = int(a.group(1) or days_lim); commits_lim = int(a.group(2) or commits_lim)
+    out = []
+    age = (date.today() - reviewed).days
+    if age > days_lim:
+        out.append(f"[stale] {rel}: last reviewed {age} days ago (limit {days_lim})")
+    sha = m.group(2)
+    if sha and sh(["git", "rev-parse", "--verify", "--quiet", sha + "^{commit}"], project):
+        log = sh(["git", "log", "--format=%H", f"{sha}..HEAD", "--", *MANIFESTS], project) or ""
+        n = len([l for l in log.splitlines() if l.strip()])
+        if n >= commits_lim:
+            out.append(f"[stale] {rel}: {n} commits touched manifests/CI/docs since {sha[:7]} (limit {commits_lim})")
+        tree = lambda ref: {d for d in (sh(["git", "ls-tree", "-d", "--name-only", ref], project) or "").split()
+                            if not d.startswith(".")}
+        old, new = tree(sha), tree("HEAD")
+        if old and new and old != new:
+            added, gone = sorted(new - old), sorted(old - new)
+            out.append(f"[drift] {rel}: top-level dirs changed since review:"
+                       + (f" added {', '.join(added)}" if added else "")
+                       + (f" removed {', '.join(gone)}" if gone else ""))
+    elif sha and sh(["git", "rev-parse", "--git-dir"], project):
+        out.append(f"[stale] {rel}: reviewed commit {sha[:7]} not found in this repo")
+    return out
+
+
+def lint_profile(project, prof_path, gids, skills, plugin_names, files):
+    rel = os.path.relpath(prof_path, project)
+    text = read(prof_path)
+    body = strip_comments(text)
+    issues, own = lint_hooks(text, rel)
+    for hid in sorted(own & gids):
+        issues.append(f"[format] {rel}: project hook {hid} reuses a global ID")
+    targets = re.findall(rf"\boff:\s*({ID})", body)
+    targets += re.findall(rf"(?:^|[\s·,])-?\s*({ID}):\s*(?:must|should)\b", body, re.M)
+    for hid in sorted(set(targets)):
+        if hid not in gids and hid not in own:
+            issues.append(f"[drift] {rel}: override targets unknown hook {hid}")
+
+    if files:
+        globs = re.findall(r"^\s*-\s*`([^`]+)`\s*→", section(text, "Risk map", "##"), re.M)
+        for m in re.finditer(r"\bpaths?\s+((?:`[^`]+`(?:\s*(?:,|and|or|·)\s*)?)+)", body):
+            globs += re.findall(r"`([^`]+)`", m.group(1))
+        for g in sorted(set(globs)):
+            if "<" in g:
+                continue
+            g2 = g.strip()
+            g2 = g2[2:] if g2.startswith("./") else g2.lstrip("/")
+            rxs = [glob_to_re(x) for x in expand_braces(g2)]
+            if not any(rx.match(f) for f in files for rx in rxs):
+                issues.append(f"[drift] {rel}: path `{g}` matches no file")
+
+    for s in sorted(referenced_skills(text, plugin_names)):
+        if s not in skills:
+            issues.append(f"[drift] {rel}: skill `{s}` is not installed" + missing_plugin(s, plugin_names))
+
+    env = re.search(r"^\s*-\s*environments:(.*)$", body, re.M)
+    for c in (re.findall(r"`([^`]+)`", env.group(1)) if env else []):
+        err = check_command(c, project)
+        if err:
+            issues.append(f"[drift] {rel}: {err}")
+    issues += staleness(project, text, rel)
+    ignores = [x.strip() for line in re.findall(r"^lint-ignore:\s*(.+)$", body, re.M)
+               for x in line.split(";") if len(x.strip()) >= 6]  # short tokens like "drift" would hide everything
+    return issues, ignores
+
+
+def lint_project(start):
+    project = find_project_root(start)
+    if not project:
+        return None, None
+    profiles = [os.path.join(project, ".claude", n) for n in PROFILE_NAMES
+                if os.path.exists(os.path.join(project, ".claude", n))]
+    gids = global_ids()
+    skills, plugin_names = installed_skills(project)
+    files = project_files(project)
+    issues, ignores = [], []
+    for p in profiles:
+        i, ig = lint_profile(project, p, gids, skills, plugin_names, files)
+        issues += i
+        ignores += ig
+    for n in ("CLAUDE.md", "CLAUDE.local.md"):
+        p = os.path.join(project, n)
+        if os.path.exists(p):
+            for c in re.findall(r"`([^`]+)`", section(read(p), "Gates")):
+                err = check_command(c, project)
+                if err:
+                    issues.append(f"[drift] {n}: {err}")
+    kept = [i for i in issues if not any(ig in i for ig in ignores)]
+    return project, (kept, len(issues) - len(kept))
+
+
+def lint_global():
+    issues, seen = [], {}
+    skills, plugin_names = installed_skills(None)
+    for f in sorted(glob.glob(os.path.join(W, "**", "*.md"), recursive=True)):
+        rel = os.path.relpath(f, W)
+        if rel.startswith(("templates", "CHANGELOG")):
+            continue
+        text = read(f)
+        fmt, ids = lint_hooks(text, rel)
+        issues += fmt
+        for i in ids:
+            if i in seen:
+                issues.append(f"[format] {rel}: hook ID {i} also in {seen[i]}")
+            seen[i] = rel
+        for s in sorted(referenced_skills(text, plugin_names)):
+            if s.startswith("wf-"):
+                if not any(os.path.exists(os.path.join(W, *x))
+                           for x in (("skills", s), ("bin", s), ("agents", s + ".md"))):
+                    issues.append(f"[drift] {rel}: `{s}` does not exist in this repo")
+            elif s not in skills:
+                issues.append(f"[drift] {rel}: skill `{s}` is not installed" + missing_plugin(s, plugin_names))
+    if not plugin_names:
+        issues.insert(0, f"[drift] no installed plugins found in {config_dirs() or ['(no config dir)']}: "
+                         "plugin skills cannot be verified (set CLAUDE_CONFIG_DIR?)")
+    return issues
+
+
+def missing_plugin(s, plugin_names):
+    p = s.split(":")[0] if ":" in s else None
+    return f" (plugin `{p}` is not installed)" if p and p not in plugin_names else ""
+
+
+# ---------- settings.json hook ----------
+def settings_hook(cfg, mode):
+    path = os.path.join(cfg, "settings.json")
+    target = os.path.realpath(path)  # write through a symlink
+    cmd = f'python3 "{os.path.join(W, "bin", "wf-lint")}" --hook'
+    raw, data = "", {}
+    if os.path.exists(target):
+        raw = read(target)
+        try:
+            data = json.loads(raw) if raw.strip() else {}
+        except Exception:
+            print(f"SKIP {path}: not valid JSON, hook not changed")
+            return
+    hooks = data.get("hooks", {}) if isinstance(data, dict) else None
+    if not isinstance(hooks, dict) or not isinstance(hooks.get("SessionStart", []), list):
+        print(f"SKIP {path}: unexpected shape, hook not changed")
+        return
+    ours = lambda h: isinstance(h, dict) and "/bin/wf-lint" in str(h.get("command", "")) \
+        and "--hook" in str(h.get("command", ""))
+    groups, removed = [], 0
+    for g in hooks.get("SessionStart", []):
+        if isinstance(g, dict) and isinstance(g.get("hooks"), list):
+            kept = [h for h in g["hooks"] if not ours(h)]
+            removed += len(g["hooks"]) - len(kept)
+            if kept:
+                groups.append(dict(g, hooks=kept))
+        else:
+            groups.append(g)  # keep groups we do not understand
+    if mode == "remove" and not removed:
+        return
+    if mode == "add":
+        groups.append({"matcher": "startup|resume", "hooks": [{"type": "command", "command": cmd, "timeout": 15}]})
+    if groups:
+        hooks["SessionStart"] = groups
+    else:
+        hooks.pop("SessionStart", None)
+    if hooks:
+        data["hooks"] = hooks
+    else:
+        data.pop("hooks", None)
+    m = re.search(r'^( +)"', raw, re.M)
+    new = json.dumps(data, indent=len(m.group(1)) if m else 2, ensure_ascii=False) + "\n"
+    if new == raw:
+        return
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if raw:
+        shutil.copyfile(target, target + ".wf-backup")
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(target), prefix=".settings.")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(new)
+    os.chmod(tmp, stat.S_IMODE(os.stat(target).st_mode) if raw else 0o644)
+    os.replace(tmp, target)
+    print(("added" if mode == "add" else "removed") + f" SessionStart wf-lint hook in {path}")
+
+
+# ---------- main ----------
+def main():
+    args = sys.argv[1:]
+    for flag, mode in (("--install-hook", "add"), ("--remove-hook", "remove")):
+        if flag in args:
+            i = args.index(flag)
+            if i + 1 >= len(args):
+                print(f"usage: wf-lint {flag} <claude_config_dir>"); sys.exit(2)
+            settings_hook(args[i + 1], mode)
+            return
+    if "--global" in args:
+        issues = lint_global()
+        print("\n".join(issues) if issues else "wf-lint --global: clean")
+        sys.exit(1 if issues else 0)
+    if "--hook" in args:
+        try:
+            data = json.load(sys.stdin)
+            start = data.get("cwd") if isinstance(data, dict) else None
+            project, res = lint_project(start or os.getcwd())
+        except Exception:
+            sys.exit(0)
+        if res and res[0]:
+            issues = res[0]
+            print(f"agent-workflow: {len(issues)} workflow drift/staleness issue(s) in {project} (from wf-lint). "
+                  "Suggest running skill wf-audit once, at the end of your first reply:")
+            for i in issues[:8]:
+                print("  " + i)
+            if len(issues) > 8:
+                print(f"  … {len(issues) - 8} more (run {W}/bin/wf-lint)")
+        sys.exit(0)
+    start = os.path.abspath(args[0] if args else os.getcwd())
+    project, res = lint_project(start)
+    if res is None:
+        print(f"wf-lint: no workflow profile in {start} or its parents")
+        sys.exit(0)
+    issues, hidden = res
+    print("\n".join(issues) if issues else "wf-lint: clean")
+    if hidden:
+        print(f"({hidden} issue(s) hidden by lint-ignore)")
+    sys.exit(1 if issues else 0)
+
+
+if __name__ == "__main__":
+    main()

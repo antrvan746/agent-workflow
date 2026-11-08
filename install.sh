@@ -26,4 +26,6 @@ for l in "$C"/skills/wf-* "$C"/agents/wf-*; do
 done
 for d in "$W"/skills/wf-*; do link "$d" "$C/skills/$(basename "$d")"; done
 for f in "$W"/agents/*.md; do link "$f" "$C/agents/$(basename "$f")"; done
+chmod +x "$W/bin/wf-lint"
+python3 "$W/bin/wf-lint" --install-hook "$C"   # SessionStart drift check
 echo "done ($C). Restart Claude Code sessions to load it."

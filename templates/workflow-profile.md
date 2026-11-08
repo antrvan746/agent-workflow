@@ -5,7 +5,10 @@
      When selectors: always, type, level, paths, tags, or free text (free-text matches are declared with ⚑).
      Overrides of global hooks: `off: <ID> — <reason>` · `<ID>: must|should`. Delete sections you do not need. -->
 
-log: .scratch/workflow/hook-log.md   <!-- hook log for wf-retro; remove this line to disable logging -->
+reviewed: YYYY-MM-DD @ <short commit>   <!-- updated by wf-project-init / wf-audit; wf-lint checks staleness from it -->
+audit: 30d, 20 commits                  <!-- staleness limits for wf-lint; optional -->
+<!-- lint-ignore: <text>; <text>       hides findings containing <text> (≥6 chars, be specific; added by wf-audit on "ignore") -->
+log: .scratch/workflow/hook-log.md      <!-- hook log for wf-retro; remove this line to disable logging -->
 
 ## Risk map
 <!-- path glob → tags, minimum level. Tags drive hook selection in every phase. Tags used by global hooks: `data`

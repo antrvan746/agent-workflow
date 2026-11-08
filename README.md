@@ -21,6 +21,8 @@ Requires the mattpocock skills plugin (`mattpocock-skills:tdd`, `diagnosing-bugs
 | `skills/wf-verify` | Verify phase procedure, testing standard, check packs (`packs/security`, `backend`, `frontend`) |
 | `skills/wf-lessons` | Turns late defects, user corrections and confirmed practices into proposed hooks (user approves) |
 | `skills/wf-retro` | Reads the hook log; proposes pruning, narrowing, upgrading or promoting hooks (user approves) |
+| `skills/wf-audit` | Checks rules and profile against the current code (or `$W` with `--global`); raises D-lines, applies approved ones |
+| `bin/wf-lint` | Deterministic drift/staleness checks; installed as a SessionStart hook (silent when clean) |
 | `agents/wf-reviewer.md` | Independent read-only reviewer for Medium/Hard tasks |
 | `templates/` | Plan, report, decision log, ADR, workflow profile |
 
@@ -44,6 +46,13 @@ When the profile sets `log:` (e.g. `.scratch/workflow/hook-log.md`), each task a
 every task ends with lesson proposals (`wf-lessons`). Every ~20 Medium/Hard tasks the report suggests `wf-retro`, which removes hooks that never catch
 anything, narrows ones that match wrongly, upgrades `should` hooks that keep catching defects, and promotes hooks
 shared by several projects to global.
+
+## Staying up to date
+`install.sh` adds a SessionStart hook that runs `bin/wf-lint`. In a project with a profile it reports dead paths,
+missing gate commands or skills, unknown override IDs, changed top-level dirs, and staleness (>30 days or ≥20 commits
+touching manifests/CI/docs since `reviewed:`). It prints nothing when clean. When it reports, the AI suggests
+`wf-audit`, which raises numbered issues (D1, D2 …) and applies only what you approve. Run `bin/wf-lint --global` or
+`wf-audit --global` for the workflow repo itself.
 
 ## Keeping control without reading all the code
 - Read the ⚠️ lines in each report and answer them specifically (only then they become ✅).

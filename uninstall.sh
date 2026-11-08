@@ -11,4 +11,5 @@ if [ -f "$C/CLAUDE.md" ] && grep -qxF "$MARK" "$C/CLAUDE.md"; then
 fi
 unlink_ours() { [ -L "$1" ] && [[ "$(readlink "$1")" == "$W"/* ]] && rm "$1" && echo "unlinked $1" || true; }
 for l in "$C"/skills/wf-* "$C"/agents/wf-*; do unlink_ours "$l"; done   # also catches links to removed skills
+python3 "$W/bin/wf-lint" --remove-hook "$C"   # SessionStart drift check
 echo "done ($C)."
