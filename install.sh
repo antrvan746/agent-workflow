@@ -5,7 +5,7 @@
 set -euo pipefail
 W="$(cd "$(dirname "$0")" && pwd)"
 C="${1:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}}"
-MARK="# ai-workflow (managed by install.sh)"
+MARK="# agent-workflow (managed by install.sh)"
 IMPORT="@$W/WORKFLOW.md"
 mkdir -p "$C/skills" "$C/agents"
 [ -e "$C/CLAUDE.md" ] || touch "$C/CLAUDE.md"

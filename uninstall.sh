@@ -3,7 +3,7 @@
 set -euo pipefail
 W="$(cd "$(dirname "$0")" && pwd)"
 C="${1:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}}"
-MARK="# ai-workflow (managed by install.sh)"
+MARK="# agent-workflow (managed by install.sh)"
 if [ -f "$C/CLAUDE.md" ] && grep -qxF "$MARK" "$C/CLAUDE.md"; then
   tmp="$(mktemp)"
   awk -v m="$MARK" 'skip==1 {skip=0; next} $0==m {skip=1; next} {print}' "$C/CLAUDE.md" > "$tmp"

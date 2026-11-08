@@ -1,12 +1,12 @@
-# ai-workflow
+# agent-workflow
 
 A Claude Code workflow for any code project (company, personal, interview, kodwai): route each project task by
 **type × level**, keep everything the AI assumed **visible**, and verify with gates and an independent reviewer.
 
 ## Install
 ```sh
-git clone <this repo> ~/Workspace/ai-workflow
-~/Workspace/ai-workflow/install.sh      # targets $CLAUDE_CONFIG_DIR or ~/.claude; run once per config dir
+git clone <this repo> ~/Workspace/personal-projects/agent-workflow
+~/Workspace/personal-projects/agent-workflow/install.sh      # targets $CLAUDE_CONFIG_DIR or ~/.claude; run once per config dir
 ```
 Uninstall: `./uninstall.sh [dir]`. Existing non-symlink skills with the same name are never overwritten.
 Requires the mattpocock skills plugin (`mattpocock-skills:tdd`, `diagnosing-bugs`, `grilling`, …).
