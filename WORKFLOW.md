@@ -73,6 +73,11 @@ Rules:
 - Reports list every declaration ("None" if none). Dispatched subagents must return `⚑ Declarations`.
 - Before reporting, scan your diff for undeclared defaults, limits, formats, libraries, empty/error behavior.
 - Back important claims with evidence (output, tests, screenshots); self-reports can be incomplete.
+- **Read the code**: before stating, relying on or changing how something behaves, read the code that implements it
+  (follow the call path far enough to be sure) or run it. Comments, docstrings, names, specs, READMEs, ADRs, tickets
+  and commit messages are hints, not evidence: a claim backed only by them is `[inferred]`, never `[verified]`. When
+  they disagree with the code, the code wins; say so (`⚑ assumption`/report) and do not "fix" the code to match them
+  without asking. Code you cannot read (external service, binary, missing repo) is declared under Not done.
 
 ## Task types
 Analyze line: `Type · Level because <reason> · Understanding: <…>` (Understanding optional for clear Easy tasks).

@@ -13,7 +13,7 @@ Goal: every "done" claim has evidence. Reading the code counts as evidence only 
      Pack files: `packs/<name>.md` next to this file (`security`, `backend`, `frontend`).
    - Checks: within each pack, those whose `When` matches the diff or the Risk map tags; plus the profile's own checks;
      plus the testing standard below. Apply `off` / strength overrides.
-   - Easy: gates + TEST-EASY + matching checks of the `security` pack, `FE-A11Y-NAMES`, `FE-A11Y-CONTRAST`, and
+   - Easy: gates + TEST-EASY + TEST-REUSE (when adding a test) + matching checks of the `security` pack, `FE-A11Y-NAMES`, `FE-A11Y-CONTRAST`, and
      matching `must` checks of the profile. Other pack checks are for Medium/Hard.
 2. **Prove**: run each check's `Verify`; record Pass / Fail (`file:line`) / n/a (why) with its evidence.
    Also check the diff against the profile's `## Invariants`.
@@ -34,7 +34,8 @@ Evidence: <what goes in the report>
 ## Testing standard
 Principles: test behavior through public interfaces; refactors that keep behavior must not break tests. Pure logic
 test-first, one vertical slice at a time. Expected values come from the spec or hand-worked examples, never recomputed
-the way the code computes them. Name tests by behavior, with requirement IDs when they exist.
+the way the code computes them. Name tests by behavior, with requirement IDs when they exist. Keep the suite lean:
+extend an existing test before adding one, and add only tests the project's structure supports (TEST-REUSE).
 
 Layers (pick the cheapest that catches the bug): unit for pure logic and edge cases; component/integration for
 wiring, modules together and DB queries; E2E for acceptance criteria and main user flows.
@@ -45,6 +46,23 @@ Claim: the change is proven by the relevant gates and, if cheap, one test.
 Verify: run gates of the touched area; add one test if it proves the task; visual change: one screenshot or a
 contrast check.
 Evidence: gate output
+
+### TEST-REUSE [must]
+When: about to add a new test (test case, file, fixture or helper), any level
+Claim: every new test is needed, could not be an extension of an existing test, and fits a test structure the
+project already supports.
+Verify: before writing it:
+1. **Needed?** Search the existing tests for this behavior/module. Already covered (at this or another layer that
+   catches the same bug) → do not add.
+2. **Reuse?** Prefer extending an existing test: add a case to a table/parametrized test, an assertion to the test of
+   the same behavior, or reuse an existing fixture/helper/factory instead of writing a new one.
+3. **Supported structure?** A new test goes where the project's own tests live: existing directory, naming, runner,
+   layer, and it runs in the gates/CI. No new framework, runner, folder convention or one-off script for it.
+4. **Temporary?** A test written only to check something while working (debug probe, scratch repro) is not kept:
+   delete it, or turn it into a proper test that passes 1–3.
+Unsure whether a test is worth keeping, or where it belongs → ask the user before adding it.
+Evidence: per new test: `extended <existing test>` or `new: <why reuse did not fit> · <path> follows <existing
+pattern> · runs in <gate>`; temporary tests removed
 
 ### TEST-CRITERIA [must]
 When: level ≥ Medium
