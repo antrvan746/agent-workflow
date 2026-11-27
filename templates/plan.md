@@ -1,5 +1,6 @@
 # Plan: <task>
 
+**Status:** active | done   <!-- set to done at report time; wf-docs sync archives done plans -->
 **Type / Level:** <Feature · Hard> — <reason>
 **Understanding:** <one line>
 

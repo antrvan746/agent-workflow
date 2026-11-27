@@ -24,7 +24,8 @@ Standard: pass when the change clearly improves the codebase's health, even if i
    different approach.
 3. **Context beyond the diff**: read whole changed files and the callers/implementations of changed symbols, not only
    the hunks. Look for **missing changes**: callers, other implementations, enum/switch handling, config, docs,
-   migrations, tests that should have changed but did not. Each is a `missing` finding.
+   migrations, tests that should have changed but did not; when the profile's `## Docs` is on, a change fragment or
+   ADR for a changed public interface, behavior or architecture. Each is a `missing` finding.
 4. **Scope**: every hunk traces to the task. Flag drive-by edits, formatting churn, refactors mixed with behavior
    changes, and leftovers (debug output, commented-out code, unused imports, stray files).
 5. Check each criterion: met / not met / not demonstrated.

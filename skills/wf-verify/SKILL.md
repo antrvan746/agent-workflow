@@ -90,6 +90,14 @@ invalid format and encoding (Unicode) · repeated or concurrent actions · a dep
 idempotence · the profile's domain edge cases.
 Evidence: tests per case, or n/a with reason
 
+### DOC-FRAGMENT [should]
+When: the profile's `## Docs` is on · level ≥ Medium · the diff changes a public interface, behavior, data or module
+structure
+Claim: a change fragment in `<root>/_changes/` covers the change (modules, what changed, plan/ADR links), and an ADR
+exists for each architecture decision.
+Verify: list the fragments and ADRs in the diff; compare their `modules:` with the modules the diff touches.
+Evidence: fragment/ADR paths, or n/a with reason
+
 ### TEST-EVIDENCE [must]
 When: always
 Claim: test results in the report are real.

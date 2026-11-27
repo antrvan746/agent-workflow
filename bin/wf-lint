@@ -9,6 +9,10 @@ Usage:
   wf-lint --install-hook <dir>   add the SessionStart hook to <dir>/settings.json (used by install.sh)
   wf-lint --remove-hook <dir>    remove it (used by uninstall.sh)
 
+Docs/memory upkeep: when the profile has a `## Docs` section, `[docs]` lines (pending change fragments, modules
+without docs, dead `code:` globs, missing/stale `synced:`, broken links); always `[memory]` lines for the project's
+Claude Code memory index. The hook suggests skill wf-docs for those and wf-audit for the rest.
+
 Principle: report only what is certainly wrong; skip what cannot be verified. Silence a finding on purpose with a
 profile line `lint-ignore: <text>` (any issue containing <text> is hidden; `;` separates several; repeatable).
 Exit code (check modes): 0 = clean, 1 = issues. Stdlib only, Python >= 3.8.
@@ -39,6 +43,11 @@ def sh(args, cwd):
         return r.stdout if r.returncode == 0 else None
     except Exception:
         return None
+
+
+def time_left():
+    """True while the shared subprocess budget lasts; checks that need git skip (report nothing) once it is spent."""
+    return DEADLINE - time.monotonic() > 0.5
 
 
 def read(path):
@@ -93,6 +102,7 @@ def expand_braces(g):
 
 
 def glob_to_re(g):
+    g = g.rstrip("/") or g  # `src/billing/` means the directory; the suffix below already matches what is inside
     out, i = "", 0
     while i < len(g):
         if g.startswith("**/", i):
@@ -344,6 +354,172 @@ def lint_profile(project, prof_path, gids, skills, plugin_names, files):
     return issues, ignores
 
 
+# ---------- docs (profile `## Docs`, skill wf-docs) ----------
+DOC_CHANGES, DOC_DAYS, DOC_COMMITS = 5, 14, 10
+NOT_LINKS = ("http://", "https://", "mailto:", "#", "/")
+DOCS_SUMMARY = []  # one line printed in check mode (not in the hook) so a clean docs check is visible
+
+
+def docs_config(text):
+    """Return the `## Docs` key/values, or None when the section is absent or only comments (= off)."""
+    conf = dict(re.findall(r"^\s*-\s*([a-z-]+):\s*(.+?)\s*$", section(text, "Docs", "##"), re.M))
+    return conf or None
+
+
+def front_matter(text):
+    m = re.match(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", text, re.S)
+    return m.group(1) if m else ""
+
+
+def fm_list(fm, key):
+    """`key: [a, b]` or a YAML block list under `key:`."""
+    m = re.search(rf"^{key}:\s*\[(.*?)\]", fm, re.M)
+    if m:
+        items = m.group(1).split(",")
+    else:
+        m = re.search(rf"^{key}:\s*(?:#.*)?\n((?:\s+-\s*.+\n?)+)", fm, re.M)
+        items = re.findall(r"^\s+-\s*(.+?)\s*$", m.group(1), re.M) if m else []
+    return [x.split("#")[0].strip().strip("`'\" ") for x in items if x.split("#")[0].strip()]
+
+
+def fm_value(fm, key):
+    m = re.search(rf"^{key}:\s*([^\s#]+)", fm, re.M)
+    return m.group(1) if m else None
+
+
+def lint_docs(project, conf, files):
+    out = []
+    raw_root = conf.get("root", "docs/").strip("` ")
+    root = os.path.expanduser(raw_root)
+    root = os.path.normpath(root if os.path.isabs(root) else os.path.join(project, root))  # glob returns normalized paths
+    if not os.path.isdir(root):
+        return [f"[docs] docs root `{raw_root}` not found (run wf-docs init)"]
+    rel = lambda p: os.path.relpath(p, project).replace(os.sep, "/")
+    lim = conf.get("sync-after", "")
+    num = lambda rx, d: int(m.group(1)) if (m := re.search(rx, lim)) else d
+    n_lim, d_lim, c_lim = num(r"(\d+)\s*changes?", DOC_CHANGES), num(r"(\d+)\s*d\b", DOC_DAYS), \
+        num(r"(\d+)\s*commits?", DOC_COMMITS)
+
+    # pending change fragments
+    frags = sorted(glob.glob(os.path.join(root, "_changes", "*.md")))
+    ages = []
+    for f in frags:
+        d = fm_value(front_matter(read(f)), "date") or os.path.basename(f)[:10]
+        try:
+            ages.append((date.today() - datetime.strptime(d, "%Y-%m-%d").date()).days)
+        except ValueError:
+            pass
+    oldest = max(ages) if ages else 0
+    if frags and (len(frags) >= n_lim or oldest > d_lim):
+        out.append(f"[docs] {len(frags)} pending change fragment(s), oldest {oldest} days "
+                   f"(limits {n_lim} changes, {d_lim}d): run wf-docs sync")
+
+    # declared modules without a doc (backticks optional: `a/`, `b/` or a/, b/)
+    mods = conf.get("modules", "")
+    mod_globs = re.findall(r"`([^`]+)`", mods) or [m.strip() for m in mods.split(",") if m.strip()]
+    for g in mod_globs:
+        if "<" in g:
+            continue
+        dirs = [d for d in glob.glob(os.path.join(project, g)) if os.path.isdir(d)]
+        if not dirs:
+            out.append(f"[docs] profile: module `{g}` matches no directory")
+        for d in dirs:
+            name = os.path.basename(os.path.normpath(d))
+            if not os.path.exists(os.path.join(root, "modules", name, "README.md")):
+                out.append(f"[docs] module `{rel(d)}/` has no doc ({rel(os.path.join(root, 'modules', name))}/README.md)")
+
+    # living docs: code globs and synced commit
+    living = glob.glob(os.path.join(root, "modules", "*", "README.md")) + [os.path.join(root, "overview.md")]
+    is_git = bool(sh(["git", "rev-parse", "--git-dir"], project))
+    for doc in [d for d in living if os.path.exists(d)]:
+        fm = front_matter(read(doc))
+        code = [g for g in fm_list(fm, "code") if g and "<" not in g]
+        for g in code:
+            g2 = (g[2:] if g.startswith("./") else g.lstrip("/")).rstrip("/")  # glob_to_re already matches below a dir
+            if files and not any(rx.match(f) for f in files for rx in map(glob_to_re, expand_braces(g2))):
+                out.append(f"[docs] {rel(doc)}: code path `{g}` matches no file")
+        sha = fm_value(fm, "synced")
+        if not code or not is_git or not time_left():
+            continue
+        if not sha or "<" in sha:
+            out.append(f"[docs] {rel(doc)}: no `synced: <commit>` (run wf-docs sync)")
+        elif not sh(["git", "rev-parse", "--verify", "--quiet", sha + "^{commit}"], project):
+            out.append(f"[docs] {rel(doc)}: synced commit {sha} not found in this repo")
+        else:
+            specs = [":(glob)" + (g[2:] if g.startswith("./") else g.lstrip("/")).rstrip("/") + ("/**" if g.endswith("/") else "")
+                     for g in code]
+            log = sh(["git", "log", "--format=%H", f"{sha}..HEAD", "--", *specs], project) or ""
+            n = len([l for l in log.splitlines() if l.strip()])
+            if n >= c_lim:
+                out.append(f"[docs] {rel(doc)}: {n} commits touched its code since {sha[:7]} (limit {c_lim}): run wf-docs sync")
+
+    # translations (`locales:` with more than one locale): stale or orphaned translated pages
+    locales = [l.strip() for l in conf.get("locales", "").replace("`", "").split(",") if l.strip()]
+    tdirs = {}  # translation dir → source root, for link fallback below
+    for loc in locales[1:]:
+        tdir = os.path.join(root, "_i18n", loc, "docusaurus-plugin-content-docs", "current")
+        tdirs[tdir] = root
+        for f in sorted(glob.glob(os.path.join(tdir, "**", "*.md"), recursive=True)):
+            src = os.path.join(root, os.path.relpath(f, tdir))
+            if not os.path.exists(src):
+                out.append(f"[docs] {rel(f)}: translation of a source page that no longer exists")
+                continue
+            sha = fm_value(front_matter(read(f)), "translated_from")
+            if not is_git or not time_left():
+                continue
+            if not sha:
+                out.append(f"[docs] {rel(f)}: no `translated_from: <commit>`")
+            elif not sh(["git", "rev-parse", "--verify", "--quiet", sha + "^{commit}"], project):
+                out.append(f"[docs] {rel(f)}: translated_from commit {sha} not found in this repo")
+            else:
+                log = sh(["git", "log", "--format=%H", f"{sha}..HEAD", "--", os.path.relpath(src, project)], project) or ""
+                n = len([l for l in log.splitlines() if l.strip()])
+                if n:
+                    out.append(f"[docs] {rel(f)}: source changed in {n} commit(s) since {sha[:7]}: re-translate (wf-docs sync)")
+
+    # broken relative links between docs (a translated page may link to an untranslated one: it falls back to the source)
+    for f in sorted(glob.glob(os.path.join(root, "**", "*.md"), recursive=True)):
+        text = re.sub(r"^(```|~~~).*?^\1", "", strip_comments(read(f)), flags=re.S | re.M)
+        tdir = next((d for d in tdirs if f.startswith(d + os.sep)), None)
+        twin = os.path.join(root, os.path.relpath(f, tdir)) if tdir else None
+        for target in re.findall(r"\]\(([^)\s]+)\)", text):
+            t = target.split("#")[0]
+            if not t or t.startswith(NOT_LINKS) or "<" in t or "://" in t:
+                continue
+            if os.path.exists(os.path.normpath(os.path.join(os.path.dirname(f), t))):
+                continue
+            if twin and os.path.exists(os.path.normpath(os.path.join(os.path.dirname(twin), t))):
+                continue
+            out.append(f"[docs] {rel(f)}: broken link `{target}`")
+    n_mod = len(glob.glob(os.path.join(root, "modules", "*", "README.md")))
+    DOCS_SUMMARY.append(f"docs: {raw_root} | {n_mod} module doc(s) | {len(frags)} pending fragment(s) | "
+                        f"{len(out)} issue(s)")  # ASCII only: Windows consoles garble other separators
+    return out
+
+
+def memory_dir(project):
+    slug = re.sub(r"[^A-Za-z0-9]", "-", os.path.abspath(project))
+    for c in config_dirs():
+        d = os.path.join(c, "projects", slug, "memory")
+        if os.path.isdir(d):
+            return d
+    return None
+
+
+def lint_memory(project):
+    """Certain index problems in the project's agent memory (Claude Code auto-memory); details are wf-docs memory's job."""
+    d = memory_dir(project)
+    idx = os.path.join(d, "MEMORY.md") if d else None
+    if not idx or not os.path.exists(idx):
+        return []
+    linked = {os.path.normpath(t.split("#")[0]) for t in re.findall(r"\]\(([^)\s]+\.md)(?:#[^)]*)?\)", read(idx))}
+    present = {f for f in os.listdir(d) if f.endswith(".md") and f != "MEMORY.md"}
+    out = [f"[memory] MEMORY.md links missing file `{t}`" for t in sorted(linked)
+           if not os.path.exists(os.path.join(d, t))]
+    out += [f"[memory] `{f}` is not listed in MEMORY.md" for f in sorted(present - linked)]
+    return out
+
+
 def lint_project(start):
     project = find_project_root(start)
     if not project:
@@ -365,6 +541,12 @@ def lint_project(start):
                 err = check_command(c, project)
                 if err:
                     issues.append(f"[drift] {n}: {err}")
+    for p in profiles:
+        conf = docs_config(read(p))
+        if conf is not None:
+            issues += lint_docs(project, conf, files)
+            break
+    issues += lint_memory(project)
     kept = [i for i in issues if not any(ig in i for ig in ignores)]
     return project, (kept, len(issues) - len(kept))
 
@@ -477,10 +659,18 @@ def main():
             project, res = lint_project(start or os.getcwd())
         except Exception:
             sys.exit(0)
-        if res and res[0]:
-            issues = res[0]
-            print(f"agent-workflow: {len(issues)} workflow drift/staleness issue(s) in {project} (from wf-lint). "
-                  "Suggest running skill wf-audit once, at the end of your first reply:")
+        upkeep = ("[docs]", "[memory]")
+        groups = [
+            ([i for i in (res[0] if res else []) if not i.startswith(upkeep)],
+             "workflow drift/staleness issue(s)", "skill wf-audit"),
+            ([i for i in (res[0] if res else []) if i.startswith(upkeep)],
+             "docs/memory upkeep item(s)", "skill wf-docs sync (wf-docs memory if only [memory] lines)"),
+        ]
+        for issues, what, skill in groups:
+            if not issues:
+                continue
+            print(f"agent-workflow: {len(issues)} {what} in {project} (from wf-lint). "
+                  f"Suggest running {skill} once, at the end of your first reply:")
             for i in issues[:8]:
                 print("  " + i)
             if len(issues) > 8:
@@ -493,6 +683,8 @@ def main():
         sys.exit(0)
     issues, hidden = res
     print("\n".join(issues) if issues else "wf-lint: clean")
+    for s in DOCS_SUMMARY:
+        print(s)
     if hidden:
         print(f"({hidden} issue(s) hidden by lint-ignore)")
     sys.exit(1 if issues else 0)

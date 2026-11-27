@@ -29,6 +29,7 @@ required checks." Typical signal → rule mappings to consider (adapt, do not co
 | Codegen, schema, i18n, design-system tooling | Execute hooks: the command to run after editing those paths |
 | UI framework / API framework / both | Verify packs `frontend` / `backend`; how to run the app goes in `environments` |
 | No tests or gates | Propose gate commands to add first |
+| Several modules, docs scattered (README, wiki, `.claude/docs`, ADRs), team or onboarding needs | Offer docs management (`wf-docs`); otherwise leave it off |
 
 ## 3. Propose the section and the profile
 Fill `templates/workflow-section.md` (next to this file) for policy, and `$W/templates/workflow-profile.md` for the
@@ -41,6 +42,8 @@ Present the choices that matter as numbered questions (Q1, Q2 …), each with a 
 - **Decision log**: path inside the repo, outside the repo (e.g. `~/notes/<project>-decisions.md`), or Off.
 - **Hook log** (`log:` in the profile, feeds `wf-retro`): default `.scratch/workflow/hook-log.md`; ask whether it is
   committed or git-ignored, or Off.
+- **Docs management** (`## Docs` in the profile, skill `wf-docs`): Off (default), or On, which runs `wf-docs init`
+  after this init is written.
 "ok" to that message answers exactly the questions it listed (✅). Rules that were not asked as questions are written
 with ⚠️ until the user confirms them individually.
 

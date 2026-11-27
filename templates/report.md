@@ -36,6 +36,8 @@ Reviewer (if the project enables it): <VERDICT; fixed …>
 
 **Reviewer:** <VERDICT>. Fixed: <…>. Not fixed (why): <…>. (UNDECLARED findings were added to the table above.)
 
+**Docs:** <fragment `<path>` · ADR `<path>` | n/a (why) | off> <· suggest wf-docs sync (wf-lint threshold reached)>
+
 **Not done / not verified:** <skipped, deferred, unverified, deviations from the workflow | None>
 
 **Least confident (worth a look):**

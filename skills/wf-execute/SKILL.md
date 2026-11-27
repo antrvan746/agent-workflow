@@ -14,6 +14,10 @@ Goal: build exactly what was agreed, with the project's own tools, keeping every
    → "Testing standard".
 3. **Per step** (plan steps, or the scope for Medium): change → run that step's "Verified by" → checkpoint. A
    checkpoint is a commit only if Ship allows it.
+   **Docs** (only when the profile's `## Docs` is on): at the end of a Medium/Hard task that changes a public
+   interface, behavior, data or module structure, add a change fragment `<root>/_changes/YYYY-MM-DD-<slug>.md`
+   (`$W/templates/docs/change.md`); write an ADR in `<root>/adr/` for architecture decisions; at report time set the
+   saved plan's `**Status:**` to `done`. Do not rewrite living docs mid-task: `wf-docs sync` does that.
 4. **Skills named by hooks**: a `must` hook's skill is mandatory; prefer a project skill over a general one. When a
    skill step conflicts with Transparency, Ship or External systems, skip that step and list it under "Not done".
 5. **Declare** `⚑` the moment an assumption, default or decision arises; keep going unless it changes scope, breaks a

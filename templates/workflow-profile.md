@@ -53,3 +53,14 @@ Evidence: <what goes in the report>
 
 ## Invariants
 <!-- Domain rules every phase must respect, e.g. "money is integer cents". -->
+
+## Docs
+<!-- Optional documentation management (skill wf-docs). Off while this section is absent or has only comments.
+     Turn on with wf-docs init, which proposes these lines. -->
+<!--
+- root: docs/                                # or a path outside the repo; an existing docs location is reused
+- modules: `src/billing/`, `src/auth/`       # each directory is one module → <root>/modules/<basename>/README.md
+- sync-after: 5 changes, 14d, 10 commits     # pending fragments · oldest fragment age · commits on a module since synced:
+- plans: archive                             # done plans at sync: archive | delete
+- level: 0                                   # presentation level; >0 only after the user agreed (wf-docs "Levels")
+-->

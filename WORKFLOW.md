@@ -118,7 +118,7 @@ profile Execute hook) → `wf-verify` light (its Easy rule) → diff scan → sh
 
 **Hard**: (1) `wf-plan` full plan, **stop for approval**; (2) `wf-execute` per step, stop per step if the user wants;
 (3) `wf-verify` on the whole change; (4) reviewer; (5) ADR for architecture/codebase changes (`$W/templates/adr.md`,
-or the project's existing ADR location), README if usage changed; (6) report.
+or the project's existing ADR location; `<root>/adr/` when Docs is on), README if usage changed; (6) report.
 
 Learning loop: note `⚑ lesson candidate` when a defect is found late, the user corrects the approach, or the user
 confirms a non-obvious practice; at the report, propose hooks with `wf-lessons`. `wf-retro` prunes, sharpens and
@@ -152,6 +152,13 @@ the default branch unless the user asks for exactly that.
 ## Decision log
 Off unless the project's `### Decision log` gives a path (init proposes one). When on: Medium/Hard append declarations
 using `$W/templates/decision-log.md`. Declarations always appear in reports either way.
+
+## Docs
+Off unless the profile has a non-empty `## Docs` section (`wf-docs init` proposes it). When on: plans and ADRs live
+under its `root`, Medium/Hard tasks that change an interface, behavior, data or module structure add a change
+fragment, and `wf-docs sync` merges fragments into the living docs (the code wins), archives done plans and cleans
+agent memory. When `wf-lint` reports `[docs]` or `[memory]` lines, suggest `wf-docs sync` (or `wf-docs memory`) once.
+`wf-docs memory` also works when Docs is off.
 
 ## Report
 `$W/templates/report.md`. Medium/Hard: result, understanding, declarations (⚠️/✅), criteria ↔ evidence, hooks per

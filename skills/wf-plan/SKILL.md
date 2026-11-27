@@ -14,7 +14,10 @@ Goal: agree on what "done" means, how it will be proven and which risks matter, 
 2. **Medium (scope, ≤10 lines)**: goal, in/out, declarations, done criteria, selected hooks. Ask ≤3 questions only
    if the answer changes the approach; otherwise proceed with ⚠️ assumptions.
 3. **Hard (plan)**: fill `$W/templates/plan.md`, run every selected hook, then **stop for approval**.
-4. Each selected hook's `Output` must appear in the scope or plan. A `should` hook may be skipped with a declared
+4. **Docs** (only when the profile's `## Docs` is on): before scoping, read the module docs and ADRs of the modules
+   you expect to touch (hints, not evidence: the code wins). Save a Hard plan as
+   `<root>/plans/active/YYYY-MM-DD-<slug>.md`.
+5. Each selected hook's `Output` must appear in the scope or plan. A `should` hook may be skipped with a declared
    reason; a `must` hook may be skipped only if the user says so.
 
 ## Global hooks
