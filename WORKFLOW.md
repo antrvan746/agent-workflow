@@ -134,7 +134,9 @@ promotes hooks from the hook log.
 Medium/Hard, after gates are green (projects may enable it for Easy). Agent `wf-reviewer` in a fresh context (if
 unavailable: general-purpose agent with `$W/agents/wf-reviewer.md` as prompt). Pass repo, base commit, done criteria
 (Easy: the request), gate commands, declarations, the verify selection (pack paths, check IDs) and the profile path.
-Fix blocker/major and re-run gates; list the rest; explain disagreements.
+Fix blocker/major and re-run gates; list the rest; explain disagreements. After fixing any blocker/major, re-run
+the reviewer in re-review mode (previous findings + fix diff only); at most 2 re-review rounds, then report what is
+still open.
 
 ## Ship
 Never commit, push or open a PR unless the user asks or `### Ship` allows. One logical change per commit. Never push to
